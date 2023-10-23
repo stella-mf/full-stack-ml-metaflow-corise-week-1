@@ -33,7 +33,7 @@ def labeling_function(row):
 
 #labeling_function = lambda row: 0
 
-class BaselineNLPFlow(FlowSpec):
+class RFNLPFlow(FlowSpec):
     # We can define input parameters to a Flow using Parameters
     # More info can be found here https://docs.metaflow.org/metaflow/basics#how-to-define-parameters-for-flows
     split_size = Parameter("split-sz", default=0.2)
@@ -73,21 +73,21 @@ class BaselineNLPFlow(FlowSpec):
         print(f"num of rows in train set: {self.traindf.shape[0]}")
         print(f"num of rows in validation set: {self.valdf.shape[0]}")
 
-        self.next(self.baseline)
+        self.next(self.rf_model)
 
 
     @step
-    def baseline(self):
+    def rf_model(self):
         "Compute the baseline"
 
         ### TODO: Fit and score a baseline model on the data, log the acc and rocauc as artifacts.
         from sklearn.metrics import accuracy_score, roc_auc_score
-        from sklearn.linear_model import LogisticRegression
+        from sklearn.ensemble import RandomForestClassifier
         from sklearn.feature_extraction.text import TfidfVectorizer
 
-        # Initialize and train a Logistic Regression model
-        model = LogisticRegression()
-
+        # Initialize and train a Random Forest model
+        model = RandomForestClassifier(n_estimators=100, random_state=42)
+        
         # Preprocess the text data and convert it to TF-IDF vectors
         tfidf_vectorizer = TfidfVectorizer()
         train_text_features = tfidf_vectorizer.fit_transform(self.traindf['review'])
@@ -101,11 +101,11 @@ class BaselineNLPFlow(FlowSpec):
         self.predictions = model.predict(val_text_features)
 
         # Calculate accuracy and ROC AUC
-        self.base_acc = 0.0
-        self.base_rocauc = 0.0
+        self.rf_acc = 0.0
+        self.rf_rocauc = 0.0
 
-        self.base_acc = accuracy_score(self.valdf['label'], self.predictions)
-        self.base_rocauc = roc_auc_score(self.valdf['label'], self.predictions)
+        self.rf_acc = accuracy_score(self.valdf['label'], self.predictions)
+        self.rf_rocauc = roc_auc_score(self.valdf['label'], self.predictions)
 
         self.next(self.end)
 
@@ -114,12 +114,12 @@ class BaselineNLPFlow(FlowSpec):
     )  # TODO: after you get the flow working, chain link on the left side nav to open your card!
     @step
     def end(self):
-        msg = "Baseline Accuracy: {}\nBaseline AUC: {}"
-        print(msg.format(round(self.base_acc, 3), round(self.base_rocauc, 3)))
+        msg = "RandomForest Model Accuracy: {}\nrf_model AUC: {}"
+        print(msg.format(round(self.rf_acc, 3), round(self.rf_rocauc, 3)))
 
         current.card.append(Markdown("# Womens Clothing Review Results"))
         current.card.append(Markdown("## Overall Accuracy"))
-        current.card.append(Artifact(self.base_acc))
+        current.card.append(Artifact(self.rf_acc))
 
         current.card.append(Markdown("## Examples of False Positives"))
         # TODO: compute the false positive predictions where the baseline is 1 and the valdf label is 0.
@@ -136,6 +136,6 @@ class BaselineNLPFlow(FlowSpec):
         false_negatives_table = Table.from_dataframe(false_negatives)
         current.card.append(false_negatives_table)
 
-
 if __name__ == "__main__":
-    BaselineNLPFlow()
+    RFNLPFlow()
+
